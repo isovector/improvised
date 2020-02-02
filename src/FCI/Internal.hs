@@ -1,3 +1,5 @@
+{-# LANGUAGE QuantifiedConstraints #-}
+
 module FCI.Internal (
     module M
   , inst

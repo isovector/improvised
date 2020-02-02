@@ -33,14 +33,17 @@ library :
 
 tests :
   first-class-instances-test :
-    main         : Spec.hs
+    main         : Main.hs
     source-dirs  : test
     ghc-options  :
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
     dependencies :
-    - first-class-instances
+    - improvised
+    - hspec
+    build-tools:
+    - hspec-discover >= 2.0
 
 ghc-options :
 - -ferror-spans
@@ -67,7 +70,6 @@ default-extensions :
 - NoStarIsType
 - PatternSynonyms
 - PolyKinds
-- QuantifiedConstraints
 - RankNTypes
 - RecordWildCards
 - RoleAnnotations

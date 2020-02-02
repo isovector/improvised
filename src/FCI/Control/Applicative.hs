@@ -1,4 +1,5 @@
-{-# language TemplateHaskell #-}
+{-# LANGUAGE QuantifiedConstraints #-}
+{-# language TemplateHaskell       #-}
 
 module FCI.Control.Applicative (
     Improvised (..)

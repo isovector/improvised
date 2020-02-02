@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d2c39c65974720ade42845e2755657a634bf097ad36becc889c5b88a8646cab7
+-- hash: 0aa15d96ec180c84f90ad3a67f8ba565992c13d54c19643055bb066fb6a5df21
 
 name:           improvised
 version:        0.1.0.0
@@ -27,7 +27,6 @@ source-repository head
 
 library
   exposed-modules:
-      Ok
       Test.Improvised
   other-modules:
       FCI.Control.Applicative
@@ -41,7 +40,7 @@ library
       Test.Improvised.THStuff
   hs-source-dirs:
       src
-  default-extensions: BlockArguments ConstraintKinds DataKinds DuplicateRecordFields GADTs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoStarIsType PatternSynonyms PolyKinds QuantifiedConstraints RankNTypes RecordWildCards RoleAnnotations ScopedTypeVariables TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators ViewPatterns
+  default-extensions: BlockArguments ConstraintKinds DataKinds DuplicateRecordFields GADTs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoStarIsType PatternSynonyms PolyKinds RankNTypes RecordWildCards RoleAnnotations ScopedTypeVariables TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators ViewPatterns
   ghc-options: -ferror-spans -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Widentities -Wredundant-constraints -Wpartial-fields -Wcompat
   build-depends:
       base >=4.7 && <5
@@ -53,17 +52,23 @@ library
 
 test-suite first-class-instances-test
   type: exitcode-stdio-1.0
-  main-is: Spec.hs
+  main-is: Main.hs
   other-modules:
+      CollectionSpec
+      MockSpec
+      WeirdTypesSpec
       Paths_improvised
   hs-source-dirs:
       test
-  default-extensions: BlockArguments ConstraintKinds DataKinds DuplicateRecordFields GADTs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoStarIsType PatternSynonyms PolyKinds QuantifiedConstraints RankNTypes RecordWildCards RoleAnnotations ScopedTypeVariables TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators ViewPatterns
+  default-extensions: BlockArguments ConstraintKinds DataKinds DuplicateRecordFields GADTs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoStarIsType PatternSynonyms PolyKinds RankNTypes RecordWildCards RoleAnnotations ScopedTypeVariables TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators ViewPatterns
   ghc-options: -ferror-spans -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Widentities -Wredundant-constraints -Wpartial-fields -Wcompat -threaded -rtsopts -with-rtsopts=-N
+  build-tool-depends:
+      hspec-discover:hspec-discover >=2.0
   build-depends:
       base >=4.7 && <5
     , containers >=0.6.0.1 && <0.7
-    , first-class-instances
+    , hspec
+    , improvised
     , lens
     , template-haskell >=2.14 && <2.15
     , transformers
