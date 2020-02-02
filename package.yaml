@@ -14,9 +14,9 @@ extra-source-files : [README.md, ChangeLog.md]
 dependencies :
 - base             >=4.7     && <5
 - containers       >=0.6.0.1 && <0.7
-- template-haskell >=2.14    && <2.15
-- transformers
-- lens
+- template-haskell >=2.14    && <2.16
+- transformers     >= 0.5.2.0 && < 0.6
+- lens             >= 4.17.1 && < 5
 
 library :
   source-dirs : src
