@@ -4,7 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE UndecidableInstances       #-}
 
-module MockableImpl where
+module Test.Improvised.Internal where
 
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Class

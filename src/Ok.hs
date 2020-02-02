@@ -14,7 +14,7 @@
 
 module Ok where
 
-import Mockable
+import Test.Improvised
 import Control.Monad.Trans.Writer
 
 

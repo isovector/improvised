@@ -1,7 +1,7 @@
 {-# LANGUAGE PatternSynonyms               #-}
 {-# LANGUAGE TemplateHaskell               #-}
 
-module MyTH
+module Test.Improvised.TH
   ( makeImprovised
   , makeImprovCollection
   , Improvised
@@ -16,8 +16,8 @@ import Data.Traversable
 import FCI.Internal
 import GHC.Generics hiding (to)
 import Language.Haskell.TH hiding (cxt)
-import MockableImpl
-import THStuff
+import Test.Improvised.Internal
+import Test.Improvised.THStuff
 
 
 makeImprovised :: Name -> Q [Dec]

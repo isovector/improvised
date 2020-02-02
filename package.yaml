@@ -27,8 +27,9 @@ library :
     - FCI.Internal
     - FCI.Internal.TH
     - FCI.Internal.Types
-    - MockableImpl
-    - THStuff
+    - Test.Improvised.Internal
+    - Test.Improvised.TH
+    - Test.Improvised.THStuff
 
 tests :
   first-class-instances-test :

@@ -1,4 +1,4 @@
-module THStuff where
+module Test.Improvised.THStuff where
 
 import Control.Lens
 import Language.Haskell.TH hiding (cxt)

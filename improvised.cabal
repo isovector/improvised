@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c6eecb26bb96f99a3f40b97ba5be6d470c3766ee68e255457065756a1820b4ff
+-- hash: d2c39c65974720ade42845e2755657a634bf097ad36becc889c5b88a8646cab7
 
 name:           improvised
 version:        0.1.0.0
@@ -27,10 +27,8 @@ source-repository head
 
 library
   exposed-modules:
-      App
-      Mockable
-      MyTH
       Ok
+      Test.Improvised
   other-modules:
       FCI.Control.Applicative
       FCI.Control.Monad
@@ -38,8 +36,9 @@ library
       FCI.Internal
       FCI.Internal.TH
       FCI.Internal.Types
-      MockableImpl
-      THStuff
+      Test.Improvised.Internal
+      Test.Improvised.TH
+      Test.Improvised.THStuff
   hs-source-dirs:
       src
   default-extensions: BlockArguments ConstraintKinds DataKinds DuplicateRecordFields GADTs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoStarIsType PatternSynonyms PolyKinds QuantifiedConstraints RankNTypes RecordWildCards RoleAnnotations ScopedTypeVariables TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators ViewPatterns

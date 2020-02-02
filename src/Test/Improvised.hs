@@ -4,7 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE UndecidableInstances       #-}
 
-module Mockable
+module Test.Improvised
   ( Improvisable ()
   , improvise
   -- , runImprovisable
@@ -15,6 +15,6 @@ module Mockable
   ) where
 
 import FCI.Internal
-import MockableImpl
-import MyTH
+import Test.Improvised.Internal
+import Test.Improvised.TH
 
