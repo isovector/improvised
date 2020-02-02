@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 475694b6f33830605a2c387135244b9ccc94e76df0159ca7a2a8f306767d28c8
+-- hash: dc310ab23399a378fcdd2456b478e11973b0de4713719282a289ff5c82c9403f
 
 name:           improvised
 version:        0.1.0.0
@@ -40,13 +40,13 @@ library
       Test.Improvised.THStuff
   hs-source-dirs:
       src
-  default-extensions: BlockArguments ConstraintKinds DataKinds DuplicateRecordFields GADTs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoStarIsType PatternSynonyms PolyKinds RankNTypes RecordWildCards RoleAnnotations ScopedTypeVariables TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators ViewPatterns
+  default-extensions: ConstraintKinds DataKinds DuplicateRecordFields GADTs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns PatternSynonyms PolyKinds RankNTypes RecordWildCards ScopedTypeVariables TypeApplications TypeFamilies TypeOperators ViewPatterns
   ghc-options: -ferror-spans -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Widentities -Wredundant-constraints -Wpartial-fields -Wcompat
   build-depends:
       base >=4.7 && <5
     , containers >=0.6.0.1 && <0.7
     , lens >=4.17.1 && <5
-    , template-haskell >=2.14 && <2.16
+    , template-haskell >=2.13 && <2.16
     , transformers >=0.5.2.0 && <0.6
   default-language: Haskell2010
 
@@ -60,7 +60,7 @@ test-suite first-class-instances-test
       Paths_improvised
   hs-source-dirs:
       test
-  default-extensions: BlockArguments ConstraintKinds DataKinds DuplicateRecordFields GADTs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoStarIsType PatternSynonyms PolyKinds RankNTypes RecordWildCards RoleAnnotations ScopedTypeVariables TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators ViewPatterns
+  default-extensions: ConstraintKinds DataKinds DuplicateRecordFields GADTs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns PatternSynonyms PolyKinds RankNTypes RecordWildCards ScopedTypeVariables TypeApplications TypeFamilies TypeOperators ViewPatterns
   ghc-options: -ferror-spans -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Widentities -Wredundant-constraints -Wpartial-fields -Wcompat -threaded -rtsopts -with-rtsopts=-N
   build-tool-depends:
       hspec-discover:hspec-discover >=2.0
@@ -70,6 +70,6 @@ test-suite first-class-instances-test
     , hspec
     , improvised
     , lens >=4.17.1 && <5
-    , template-haskell >=2.14 && <2.16
+    , template-haskell >=2.13 && <2.16
     , transformers >=0.5.2.0 && <0.6
   default-language: Haskell2010

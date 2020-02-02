@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                               #-}
 {-# language NoMonoLocalBinds, TemplateHaskell #-}
 
 module FCI.Internal.TH (
@@ -13,6 +14,7 @@ module FCI.Internal.TH (
   , ClassDictFieldSource (..)
   ) where
 
+import           Control.Lens hiding (index)
 import           Control.Monad
 import           Control.Monad.ST
 import           Data.Char
@@ -21,10 +23,12 @@ import           Data.List
 import qualified Data.Map.Strict as M
 import           Data.Maybe
 import           Data.STRef
+import qualified Data.Set as S
+import           FCI.Internal.Types (Improvised)
 import           Language.Haskell.TH
+import           Language.Haskell.TH.Lens hiding (name)
 import           Language.Haskell.TH.Syntax
-
-import FCI.Internal.Types (Improvised)
+import           Test.Improvised.THStuff
 
 -------------------------------------------------------------------------------
 -- | Creates first class instance representation from based on class. To avoid
@@ -42,9 +46,6 @@ mkInstWithOptions opts name = checkSafeInst name *> unsafeMkInst opts name
 -- | Checks that it is save to create 'Inst' instance for given name.
 checkSafeInst :: Name -> Q ()
 checkSafeInst name = do
-  -- TODO
-  isExtEnabled QuantifiedConstraints >>= flip when do
-    fail "'QuantifiedConstraints' are not supported yet"
   Module _ (ModName this_module) <- thisModule
   unless (nameModule name == Just this_module) $ fail
     $  '\'' : nameBase name ++ "' is not declared in current module '"
@@ -54,7 +55,7 @@ checkSafeInst name = do
 -- | Version of 'mkInst' without any checks. You shouldn't use it unless you're
 -- working on this library.
 unsafeMkInst :: MkInstOptions -> Name -> Q [Dec]
-unsafeMkInst opts = fmap dictInst . getClassDictInfo opts
+unsafeMkInst opts = dictInst <=< getClassDictInfo opts
 
 -------------------------------------------------------------------------------
 -- | Constructs info about class dictionary represenation being created.
@@ -94,7 +95,7 @@ liftName f = mkName . f . nameBase
 -- | Creates class dictionary representation fields from constraints that carry
 -- runtime proof, preserving order.
 superFieldsFromCxt :: MkInstOptions -> [Pred] -> [ClassDictField]
-superFieldsFromCxt opts constraints = runST do
+superFieldsFromCxt opts constraints = runST $ do
   counts <- newSTRef M.empty
   sequence $ mapMaybe (fmap . mkSuperField counts <*> appHeadName) constraints
  where
@@ -162,8 +163,12 @@ appHeadName = \case
   ConstraintT      -> Just ''K.Constraint
   LitT{}           -> Nothing
   WildCardT        -> Nothing
+#if MIN_VERSION_base(4,13,0)
+  AppKindT t _       -> appHeadName t
+  ImplicitParamT _ t -> appHeadName t
+#endif
  where
-  prod l d i r  = Just $ mkName if
+  prod l d i r  = Just $ mkName $ if
     | i <= 0    -> l                  ++ r
     | otherwise -> l ++ replicate i d ++ r
 
@@ -172,7 +177,7 @@ appHeadName = \case
 -- 'Nothing'.
 methodFieldFromDec :: MkInstOptions -> Dec -> Maybe ClassDictField
 methodFieldFromDec opts = \case
-  SigD n (ForallT _ _ t) -> Just CDF{
+  SigD n (removeTyAnns -> t) -> Just CDF{
       fieldName   = liftName (mkInstMethodFieldName opts) n
     , fieldSource = Method
     , origName    = n
@@ -194,23 +199,24 @@ fieldFromMethodName _ = error "fieldFromMethodName: empty 'Name'"
 
 -------------------------------------------------------------------------------
 -- | Creates 'Dict' instance from info about class dictionary representation.
-dictInst :: ClassDictInfo -> [Dec]
+dictInst :: ClassDictInfo -> Q [Dec]
 dictInst cdi =
-  [ case classDictToRecField <$> dictFields cdi of
-      []      -> mk DataInstD    [NormalC (dictConName cdi) []     ]
-      [field] -> mk NewtypeInstD (RecC    (dictConName cdi) [field])
-      fields  -> mk DataInstD    [RecC    (dictConName cdi) fields ]
-  ]
+  fmap pure $ case classDictToRecField (toListOf typeVars $ dictTyArg cdi) <$> dictFields cdi of
+    []      -> mkData    [RecC (dictConName cdi) []]
+    [field] -> mkNewtype (RecC (dictConName cdi) [field])
+    fields  -> mkData    [RecC (dictConName cdi) fields ]
+
  where
-  mk con fields = con [] ''Improvised [dictTyArg cdi] Nothing fields []
+  mkNewtype field = newtypeInstD (pure []) ''Improvised [pure $ dictTyArg cdi] Nothing (pure field) []
+  mkData fields = dataInstD (pure []) ''Improvised [pure $ dictTyArg cdi] Nothing (fmap pure fields) []
 
 -------------------------------------------------------------------------------
 -- | Converts info about class dictionary representation field to record field.
-classDictToRecField :: ClassDictField -> VarBangType
-classDictToRecField cdf = (
+classDictToRecField :: [Name] -> ClassDictField -> VarBangType
+classDictToRecField args cdf = (
     fieldName cdf
   , Bang NoSourceUnpackedness NoSourceStrictness
-  , (case fieldSource cdf of
+  , quantifyType' (S.fromList args) [] $ (case fieldSource cdf of
       Superclass -> AppT $ ConT ''Improvised
       Method     -> id
     ) $ origType cdf
@@ -258,3 +264,4 @@ defaultOptions = MkInstOptions
 -- | Checks if character is part of alphabet or underscore.
 isAlpha_ :: Char -> Bool
 isAlpha_ c = isAlpha c || c == '_'
+

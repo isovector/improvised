@@ -307,7 +307,7 @@ makeImprovCollection nm = do
             makeHasDictInstForField tycon_name vars con_name ts
           _ -> error "Only for normal constructors and records"
       pure
-        -- $ StandaloneDerivD (Just StockStrategy) []
+        --   StandaloneDerivD (Just StockStrategy) []
         --   (ConT ''Generic `AppT` (foldl AppT (ConT tycon_name) $ fmap (VarT . getBndrName) vars))
         -- :
           z

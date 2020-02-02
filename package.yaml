@@ -14,7 +14,7 @@ extra-source-files : [README.md, ChangeLog.md]
 dependencies :
 - base             >=4.7     && <5
 - containers       >=0.6.0.1 && <0.7
-- template-haskell >=2.14    && <2.16
+- template-haskell >=2.13    && <2.16
 - transformers     >= 0.5.2.0 && < 0.6
 - lens             >= 4.17.1 && < 5
 
@@ -57,7 +57,6 @@ ghc-options :
 - -Wcompat
 
 default-extensions :
-- BlockArguments
 - ConstraintKinds
 - DataKinds
 - DuplicateRecordFields
@@ -67,16 +66,13 @@ default-extensions :
 - MultiParamTypeClasses
 - MultiWayIf
 - NamedFieldPuns
-- NoStarIsType
 - PatternSynonyms
 - PolyKinds
 - RankNTypes
 - RecordWildCards
-- RoleAnnotations
 - ScopedTypeVariables
 - TypeApplications
 - TypeFamilies
-- TypeFamilyDependencies
 - TypeOperators
 - ViewPatterns
 

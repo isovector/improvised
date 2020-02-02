@@ -3,6 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE TemplateHaskell        #-}
 {-# LANGUAGE UndecidableInstances   #-}
+{-# OPTIONS_GHC -ddump-splices      #-}
 
 module CollectionSpec where
 
