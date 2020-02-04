@@ -1,7 +1,10 @@
+{-# OPTIONS_GHC -fno-cse #-}
+{-# OPTIONS_GHC -fno-full-laziness #-}
+{-# OPTIONS_GHC -fno-float-in #-}
+
 module FCI.Internal (
     module M
   , inst
-  , (==>)
   ) where
 
 import Unsafe.Coerce
@@ -10,7 +13,6 @@ import FCI.Internal.Types as M
 import FCI.Internal.TH    as M
 
 -------------------------------------------------------------------------------
-infixr 0 ==>
 infixr 1 :=>
 
 -------------------------------------------------------------------------------
@@ -21,14 +23,6 @@ infixr 1 :=>
 -- TODO: example
 inst :: forall c. c => Improvised c
 inst = case unsafeCoerce id :: c :=> Improvised c of Wants d -> d
-
--------------------------------------------------------------------------------
--- | /Reifies/ first class instance into constraint in context of supplied
--- continuation.
---
--- TODO: example
-(==>) :: forall c r. Improvised c -> (c => r) -> r
-d ==> r = unsafeCoerce (Wants @c @r r) d
 
 -------------------------------------------------------------------------------
 -- | Type of computation @a@ requiring constraint @c@ - used internally when

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: dc310ab23399a378fcdd2456b478e11973b0de4713719282a289ff5c82c9403f
+-- hash: 198b60f3a1e5d165def6614470457d6ef1567663cfb65e115fb5cd2b032302d5
 
 name:           improvised
 version:        0.1.0.0
@@ -29,9 +29,6 @@ library
   exposed-modules:
       Test.Improvised
   other-modules:
-      FCI.Control.Applicative
-      FCI.Control.Monad
-      FCI.Data.Functor
       FCI.Internal
       FCI.Internal.TH
       FCI.Internal.Types

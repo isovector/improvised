@@ -10,11 +10,9 @@ module Test.Improvised.TH
 import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
-import Data.Char
 import Data.Maybe
 import Data.Traversable
 import FCI.Internal
-import GHC.Generics hiding (to)
 import Language.Haskell.TH hiding (cxt)
 import Test.Improvised.Internal
 import Test.Improvised.THStuff
@@ -121,18 +119,9 @@ getTyVar (removeTyAnns -> VarT n) = Just n
 getTyVar _                        = Nothing
 
 
--- class HasMonadFoo2 s m a | a m -> s where
---   getMonadFoo :: a -> Inst (MonadFoo s m)
-
-
-
-
-firstToLower :: String -> String
-firstToLower [] = []
-firstToLower (x:xs) = toLower x : xs
-
 getClassName :: Name -> Name
 getClassName = overName ("Has" ++)
+
 
 getMethodName :: Name -> Name
 getMethodName = overName (("get" ++) . (++ "Improvised"))
