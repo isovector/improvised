@@ -1,12 +1,12 @@
 module Test.Improvised.THStuff where
 
-import Control.Lens
-import Language.Haskell.TH hiding (cxt)
-import Language.Haskell.TH.Lens hiding (name)
-import Data.List
+import           Control.Arrow ((>>>))
+import           Control.Lens
+import           Data.List
+import           Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Set (Set)
-import Control.Arrow ((>>>))
+import           Language.Haskell.TH hiding (cxt)
+import           Language.Haskell.TH.Lens hiding (name)
 
 
 pattern (:->) :: Type -> Type -> Type
@@ -56,4 +56,16 @@ quantifyType' exclude c t = ForallT vs c t
 getBndrName :: TyVarBndr -> Name
 getBndrName (PlainTV name) = name
 getBndrName (KindedTV name _) = name
+
+
+getTyVar :: Type -> Maybe Name
+getTyVar (removeTyAnns -> VarT n) = Just n
+getTyVar _                        = Nothing
+
+
+applyE :: Exp -> [Exp] -> Exp
+applyE = foldl' AppE
+
+applyT :: Type -> [Type] -> Type
+applyT = foldl' AppT
 

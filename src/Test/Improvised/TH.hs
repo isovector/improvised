@@ -1,5 +1,5 @@
-{-# LANGUAGE PatternSynonyms               #-}
-{-# LANGUAGE TemplateHaskell               #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Test.Improvised.TH
   ( makeImprovised
@@ -7,78 +7,90 @@ module Test.Improvised.TH
   , Improvised
   ) where
 
-import Control.Monad
-import Control.Monad.Trans.Class
-import Control.Monad.Trans.Reader
-import Data.Maybe
-import Data.Traversable
-import FCI.Internal
-import Language.Haskell.TH hiding (cxt)
-import Test.Improvised.Internal
-import Test.Improvised.THStuff
+import           Control.Lens (toListOf)
+import           Control.Monad
+import           Control.Monad.Trans.Class
+import           Control.Monad.Trans.Reader
+import           Data.List
+import           Data.Maybe
+import qualified Data.Set as S
+import           Data.Traversable
+import           FCI.Internal
+import           Language.Haskell.TH hiding (cxt)
+import           Language.Haskell.TH.Lens hiding (name)
+import           Test.Improvised.Internal
+import           Test.Improvised.THStuff
+
+
+options :: MkInstOptions
+options = defaultOptions
+  { mkInstClassConName = (++ "Impl") . mkInstClassConName defaultOptions
+  , mkInstMethodFieldName = ('_' :) . mkInstMethodFieldName defaultOptions
+  }
 
 
 makeImprovised :: Name -> Q [Dec]
 makeImprovised name = do
-  let opts =
-        defaultOptions
-          { mkInstClassConName = (++ "Impl") . mkInstClassConName defaultOptions
-          , mkInstMethodFieldName = ('_' :) . mkInstMethodFieldName defaultOptions
-          }
-  dict_info <- getClassDictInfo opts name
+  dict_info <- getClassDictInfo options name
   let class_name = className dict_info
 
   fmap join $ sequenceA
-    [ mkInstWithOptions opts name
+    [ mkInstWithOptions options name
     , makePatternSyn dict_info
-    , makeBetterFieldClass dict_info
+    , makeHasFieldClass dict_info
           (getClassName class_name)
           (getMethodName class_name)
     , fmap pure $ makeMockableInstance dict_info
     ]
 
 
-makePatternSyn :: ClassDictInfo -> DecsQ
+removeImplSuffix :: String -> String
+removeImplSuffix = reverse . drop 4 . reverse
+
+removeUnderscorePrefix :: String -> String
+removeUnderscorePrefix = drop 1
+
+makePatternSyn :: ClassDictInfo -> Q [Dec]
 makePatternSyn cdi = do
-  let cxt          = dictConstraints cdi
-      dcon_name    = dictConName cdi
-      pattern_name = overName (reverse . drop 4 . reverse) $ dictConName cdi
-      fields       = dictFields cdi
-  let bndr_names = flip fmap (filter isMethodField fields) $ overName (drop 1) . fieldName
-  let bndrs = fmap VarP bndr_names
-      pats  = fmap (const WildP) (filter (not . isMethodField) fields)
-           <> bndrs
-      args = fmap (const $ VarE 'inst) (filter (not . isMethodField) fields)
-          <> fmap VarE bndr_names
+  let dcon_name         = dictConName cdi
+      pattern_name      = overName removeImplSuffix $ dictConName cdi
+      (methods, supers) = partition isMethodField $ dictFields cdi
+      bndr_names        =
+        fmap (overName removeUnderscorePrefix . fieldName) methods
+      bndrs             = fmap VarP bndr_names
+      pats              = (WildP <$ supers) <> bndrs
+      args              = fmap VarE $ fmap (const 'inst) supers <> bndr_names
+      inst_type = getInstType cdi
+      free_vars = toListOf typeVars inst_type
   pure
     [ PatSynD
         pattern_name
         (RecordPatSyn bndr_names)
-        (ExplBidir [Clause bndrs (NormalB $ foldl AppE (ConE dcon_name) args) []])
+        (ExplBidir [Clause bndrs (NormalB $ applyE (ConE dcon_name) args) []])
         (ConP dcon_name pats)
     , PatSynSigD pattern_name
-        . quantifyType' mempty cxt
-        . foldr (:->) (getInstType cdi)
-        . fmap origType
-        $ filter isMethodField fields
+        . quantifyType' mempty (dictConstraints cdi)
+        . foldr (:->) inst_type
+        . fmap (quantifyType' (S.fromList free_vars) [])
+        $ fmap origType methods
     ]
 
 
-makeBetterFieldClass :: ClassDictInfo -> Name -> Name -> DecsQ
-makeBetterFieldClass cdi class_name method_name = do
+makeHasFieldClass :: ClassDictInfo -> Name -> Name -> Q [Dec]
+makeHasFieldClass cdi class_name method_name = do
   a_name <- newName "env"
   let cs = getClassStuff cdi
   Just m_name <- pure $ getTyVar $ csMType cs
   let vars = mapMaybe getTyVar (csArgs cs <> [csMType cs])
       fundeps = (FunDep [a_name] [m_name] :)
-              . fmap (installANameIfNecessary m_name a_name)
+              . fmap (strengthenFundep m_name a_name)
               $ dictFundeps cdi
   pure
     [ ClassD [] class_name (fmap PlainTV $ vars <> [a_name]) fundeps
         . pure
         . SigD method_name
         $ VarT a_name :-> csInstType cs
-    , makeBetterFieldInstance
+    , makeHasFieldInstance
         class_name
         (fmap VarT vars)
         (csInstType cs)
@@ -88,7 +100,7 @@ makeBetterFieldClass cdi class_name method_name = do
     ]
 
 
-makeBetterFieldInstance
+makeHasFieldInstance
     :: Name
     -> [Type]
     -> Type
@@ -96,11 +108,11 @@ makeBetterFieldInstance
     -> [Pat]
     -> Exp
     -> Dec
-makeBetterFieldInstance class_name args inst_ty method_name pats expr =
+makeHasFieldInstance class_name args inst_ty method_name pats expr =
   InstanceD
       Nothing
       []
-      (foldl AppT (ConT class_name) $ args ++ [inst_ty])
+      (applyT (ConT class_name) $ args ++ [inst_ty])
     [ FunD method_name
         . pure
         $ Clause pats (NormalB expr) []
@@ -108,15 +120,15 @@ makeBetterFieldInstance class_name args inst_ty method_name pats expr =
     ]
 
 
-installANameIfNecessary :: Name -> Name -> FunDep -> FunDep
-installANameIfNecessary m_name a_name fundep@(FunDep lhs rhs)
+------------------------------------------------------------------------------
+-- | If a fundep includes @m_name@ on the left side, also add @a_name@ on the
+-- left. This is necessary to preserve fundep logic from class @MonadX@ to the
+-- @HasMonadX@ (see 'makeHasFieldClass")
+strengthenFundep :: Name -> Name -> FunDep -> FunDep
+strengthenFundep m_name a_name fundep@(FunDep lhs rhs)
   | elem m_name lhs = FunDep (a_name : lhs) rhs
   | otherwise       = fundep
 
-
-getTyVar :: Type -> Maybe Name
-getTyVar (removeTyAnns -> VarT n) = Just n
-getTyVar _                        = Nothing
 
 
 getClassName :: Name -> Name
@@ -127,22 +139,26 @@ getMethodName :: Name -> Name
 getMethodName = overName (("get" ++) . (++ "Improvised"))
 
 
-diddleArg :: Type -> Name -> Position -> (Exp, Type) -> Q Exp
-diddleArg m_type r_name pos (arg_exp, arg_type) =
-  -- trace (show (pos, arg, arg_type)) $
+liftExprIntoM :: Type -> Name -> Position -> (Exp, Type) -> Q Exp
+liftExprIntoM m_type r_name pos (arg_exp, arg_type) =
   case classifyArg m_type arg_type of
     Boring  -> pure arg_exp
     Monadic -> pure $ liftCorrectPosition r_name pos arg_exp
     Lambda -> do
-      let arrows      = splitArrowTs arg_type
-          arg_types   = init arrows
-          result_type = last arrows
+      Just (arg_types, result_type) <- pure $ unsnoc $ splitArrowTs arg_type
       arg_names <- for arg_types $ const $ newName "x"
       splice_args <- for (zip (fmap VarE arg_names) arg_types) $ \arg -> do
-        diddleArg m_type r_name (negatePosition pos) arg
-      let call = foldl AppE arg_exp splice_args
-      splice_result <- diddleArg m_type r_name pos (call, result_type)
+        liftExprIntoM m_type r_name (negatePosition pos) arg
+      let call = applyE arg_exp splice_args
+      splice_result <- liftExprIntoM m_type r_name pos (call, result_type)
       pure $ LamE (fmap VarP arg_names) splice_result
+
+
+unsnoc :: [a] -> Maybe ([a], a)
+unsnoc []  = Nothing
+unsnoc [a] = Just ([], a)
+unsnoc as  = Just (init as, last as)
+
 
 
 liftCorrectPosition :: Name -> Position -> Exp -> Exp
@@ -160,7 +176,7 @@ makeHasDictLookup :: Name -> Name -> Name -> Exp
 makeHasDictLookup r_name dict_name field_name =
   VarE field_name `AppE` (VarE dict_name `AppE` VarE r_name)
 
---   foldl AppE (VarE 'view)
+--   applyE (VarE 'view)
 --     [ InfixE
 --         (Just $ VarE dict_name)
 --         (VarE '(.))
@@ -174,8 +190,8 @@ makeHasDictLookup r_name dict_name field_name =
 -- the @m_type@ monad, and ignoring them othewise.
 makeLiftedCall :: Type -> Name -> Name -> Name -> [(Name, Type)] -> Q Exp
 makeLiftedCall m_type r_name dict_name field_name args = do
-  args' <- for args $ \(arg, ty) -> diddleArg m_type r_name Negative (VarE arg, ty)
-  pure $ foldl AppE (makeHasDictLookup r_name dict_name field_name) args'
+  args' <- for args $ \(arg, ty) -> liftExprIntoM m_type r_name Negative (VarE arg, ty)
+  pure $ applyE (makeHasDictLookup r_name dict_name field_name) args'
 
 
 ------------------------------------------------------------------------------
@@ -216,23 +232,25 @@ makeMockableInstance cdi = do
   let class_name = className cdi
       okname = getMethodName class_name
 
-  methods <- for (filter isMethodField $ dictFields cdi) $ \fi ->
-    makeLiftedMethod
-          m_type
-          okname
-          (origName fi)
-          (fieldName fi)
-      . init
-      . splitArrowTs
-      $ origType fi
+  methods <-
+    for (filter isMethodField $ dictFields cdi) $ \fi ->
+      makeLiftedMethod
+            m_type
+            okname
+            (origName fi)
+            (fieldName fi)
+        . init
+        . splitArrowTs
+        $ origType fi
 
   pure
     $ InstanceD
         Nothing
-        ( foldl AppT (ConT (getClassName class_name)) (args ++ [m_type, VarT dict_name])
+        ( applyT (ConT (getClassName class_name)) (args ++ [m_type, VarT dict_name])
         : dictConstraints cdi
-        ) (class_ctr `AppT` (ConT ''Improvisable `AppT` VarT dict_name `AppT` m_type))
+        ) (class_ctr `AppT` (applyT (ConT ''Improvisable) [VarT dict_name, m_type]))
     $ join methods
+
 
 data ClassStuff = ClassStuff
   { csMType       :: Type
@@ -245,9 +263,8 @@ getClassStuff :: ClassDictInfo -> ClassStuff
 getClassStuff cdi =
   let class_name = className cdi
       class_vars = drop 1 $ splitAppTs $ dictTyArg cdi
-      vars_to_keep = init class_vars
-      m_type = removeSig $ last class_vars
-      class_ctr = foldl AppT (ConT class_name) vars_to_keep
+      Just (vars_to_keep, removeSig -> m_type) = unsnoc class_vars
+      class_ctr = applyT (ConT class_name) vars_to_keep
       inst_type = ConT ''Improvised `AppT` (class_ctr `AppT` m_type)
    in ClassStuff m_type class_ctr inst_type vars_to_keep
 
@@ -284,23 +301,17 @@ classifyArg m_type arg_type
 
 
 
-makeImprovCollection :: Name -> DecsQ
+makeImprovCollection :: Name -> Q [Dec]
 makeImprovCollection nm = do
   reify nm >>= \case
-    TyConI (DataD _ tycon_name vars _ [con] _) -> do
-      z <-
-        case con of
-          NormalC con_name (fmap snd -> ts) ->
-            makeHasDictInstForField tycon_name vars con_name ts
-          RecC    con_name (fmap thd -> ts) ->
-            makeHasDictInstForField tycon_name vars con_name ts
-          _ -> error "Only for normal constructors and records"
-      pure
-        --   StandaloneDerivD (Just StockStrategy) []
-        --   (ConT ''Generic `AppT` (foldl AppT (ConT tycon_name) $ fmap (VarT . getBndrName) vars))
-        -- :
-          z
-    _ -> error "Must call it on a dang Type!"
+    TyConI (DataD _ tycon_name vars _ [con] _) ->
+      case con of
+        NormalC con_name (fmap snd -> ts) ->
+          makeHasDictInstForField tycon_name vars con_name ts
+        RecC    con_name (fmap thd -> ts) ->
+          makeHasDictInstForField tycon_name vars con_name ts
+        _ -> error "Only for normal constructors and records"
+    _ -> error "makeImprovCollection mustbe called on a type constructor"
 
 
 makeHasDictInstForField :: Name -> [TyVarBndr] -> Name -> [Type] -> Q [Dec]
@@ -312,9 +323,7 @@ makeHasDictInstForField tycon_name vars con_name ts =
 
 
 isImprovised :: Type -> Bool
-isImprovised t
-  | removeTyAnns t == ConT ''Improvised = True
-  | otherwise                     = False
+isImprovised t = removeTyAnns t == ConT ''Improvised
 
 hasDictInst
     :: Name
@@ -323,14 +332,14 @@ hasDictInst
     -> Int
     -> Type
     -> Int
-    -> DecQ
+    -> Q Dec
 hasDictInst tycon_name bndrs con_name num t idx = do
   field <- newName "x"
-  let pats =
-        flip fmap [0..num - 1] $ \n ->
-          case n == idx of
-            True -> VarP field
-            False -> WildP
+  let pats = do
+        n <- [0 .. num - 1]
+        pure $ case n == idx of
+          True -> VarP field
+          False -> WildP
 
 
   let apps = splitAppTs t
@@ -338,16 +347,17 @@ hasDictInst tycon_name bndrs con_name num t idx = do
     [dict, c] | isImprovised dict -> do
       (ConT class_name : args) <- pure $ splitAppTs c
       pure $
-        makeBetterFieldInstance
+        makeHasFieldInstance
           (getClassName class_name)
           args
-          (foldl AppT (ConT tycon_name) $ fmap (VarT . getBndrName) bndrs)
+          (applyT (ConT tycon_name) $ fmap (VarT . getBndrName) bndrs)
           (getMethodName class_name)
           [ConP con_name pats]
           (VarE field)
-    _ -> error "shit"
+    _ -> error "hasDictInst must be called with 'Improvised' as the type"
 
 
 thd :: (a, b, c) -> c
 thd (_, _, c) = c
+
 

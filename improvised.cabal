@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 198b60f3a1e5d165def6614470457d6ef1567663cfb65e115fb5cd2b032302d5
+-- hash: c82fd8230ea8db2bf75c4630c59985cfce150b113fec279a831b5ae5726674df
 
 name:           improvised
 version:        0.1.0.0
@@ -53,6 +53,7 @@ test-suite first-class-instances-test
   other-modules:
       CollectionSpec
       MockSpec
+      QuantifiedSpec
       WeirdTypesSpec
       Paths_improvised
   hs-source-dirs:
