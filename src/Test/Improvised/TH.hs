@@ -20,6 +20,7 @@ import           Language.Haskell.TH hiding (cxt)
 import           Language.Haskell.TH.Lens hiding (name)
 import           Test.Improvised.Internal
 import           Test.Improvised.THStuff
+import           Type.Errors (WhenStuck, DelayError, ErrorMessage (..))
 
 
 options :: MkInstOptions
@@ -97,6 +98,7 @@ makeHasFieldClass cdi class_name method_name = do
         method_name
         []
         (VarE 'id)
+    , makeImprovCollectionProof $ csInstType cs
     ]
 
 
@@ -228,8 +230,9 @@ makeLiftedMethod m_type dict_name method_name field_name arg_types = do
 makeMockableInstance :: ClassDictInfo -> Q Dec
 makeMockableInstance cdi = do
   dict_name <- newName "dict"
-  let ClassStuff m_type class_ctr _ args = getClassStuff cdi
-  let class_name = className cdi
+  let dict = VarT dict_name
+      ClassStuff m_type class_ctr _ args = getClassStuff cdi
+      class_name = className cdi
       okname = getMethodName class_name
 
   methods <-
@@ -246,10 +249,42 @@ makeMockableInstance cdi = do
   pure
     $ InstanceD
         Nothing
-        ( applyT (ConT (getClassName class_name)) (args ++ [m_type, VarT dict_name])
+        ( applyT (ConT (getClassName class_name)) (args ++ [m_type, dict])
+        : typeErrorForMissingImprovCollection dict
         : dictConstraints cdi
-        ) (class_ctr `AppT` (applyT (ConT ''Improvisable) [VarT dict_name, m_type]))
+        ) (class_ctr `AppT` (applyT (ConT ''Improvisable) [dict, m_type]))
     $ join methods
+
+
+typeErrorForMissingImprovCollection :: Type -> Type
+typeErrorForMissingImprovCollection dict =
+  applyT (ConT ''WhenStuck)
+    [ ConT ''IsImprovCollection `AppT` dict
+    , ConT ''DelayError `AppT`
+        layoutError
+          [ [ textError "Attempted to call 'improvise' against '"
+            , ConT ''ShowTypeAppHead `AppT` dict
+            , textError "'"
+            ]
+          , [ textError "  but '"
+            , ConT ''ShowTypeAppHead `AppT` dict
+            , textError "' is not an improv collection."
+            ]
+          , [ textError "Probable fix: splice $(makeImprovCollection ''"
+            , ConT ''ShowTypeAppHead `AppT` dict
+            , textError ") earlier in the file"
+            ]
+          ]
+    ]
+
+textError :: String -> Type
+textError = AppT (PromotedT 'Text) . LitT . StrTyLit
+
+layoutError :: [[Type]] -> Type
+layoutError
+  = foldl1' (flip InfixT '(:$$:))
+  . fmap (foldl1' (flip InfixT '(:<>:)))
+
 
 
 data ClassStuff = ClassStuff
@@ -314,16 +349,27 @@ makeImprovCollection nm = do
     _ -> error "makeImprovCollection mustbe called on a type constructor"
 
 
+makeImprovCollectionProof :: Type -> Dec
+makeImprovCollectionProof ty
+  = TySynInstD ''IsImprovCollection
+  . TySynEqn [ty]
+  $ TupleT 0
+
+
 makeHasDictInstForField :: Name -> [TyVarBndr] -> Name -> [Type] -> Q [Dec]
-makeHasDictInstForField tycon_name vars con_name ts =
-  for (zip ts [0..])
-    . uncurry
-    . hasDictInst tycon_name vars con_name
-    $ length ts
+makeHasDictInstForField tycon_name vars con_name ts = do
+  insts <-
+    for (zip ts [0..])
+      . uncurry
+      . hasDictInst tycon_name vars con_name
+      $ length ts
+  pure $ makeImprovCollectionProof (applyT (ConT tycon_name) $ fmap (VarT . getBndrName) vars)
+       : insts
 
 
 isImprovised :: Type -> Bool
 isImprovised t = removeTyAnns t == ConT ''Improvised
+
 
 hasDictInst
     :: Name

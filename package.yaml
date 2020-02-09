@@ -17,6 +17,7 @@ dependencies :
 - template-haskell >=2.13    && <2.16
 - transformers     >= 0.5.2.0 && < 0.6
 - lens             >= 4.17.1 && < 5
+- type-errors      >= 0.2.0.0 && < 0.3
 
 library :
   source-dirs : src

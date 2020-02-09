@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c82fd8230ea8db2bf75c4630c59985cfce150b113fec279a831b5ae5726674df
+-- hash: 2fcd5ca74be66ef65c62450bd009044256ebe6510e28c6169c87e9efcc459a94
 
 name:           improvised
 version:        0.1.0.0
@@ -45,6 +45,7 @@ library
     , lens >=4.17.1 && <5
     , template-haskell >=2.13 && <2.16
     , transformers >=0.5.2.0 && <0.6
+    , type-errors >=0.2.0.0 && <0.3
   default-language: Haskell2010
 
 test-suite first-class-instances-test
@@ -70,4 +71,5 @@ test-suite first-class-instances-test
     , lens >=4.17.1 && <5
     , template-haskell >=2.13 && <2.16
     , transformers >=0.5.2.0 && <0.6
+    , type-errors >=0.2.0.0 && <0.3
   default-language: Haskell2010
