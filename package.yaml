@@ -18,6 +18,7 @@ dependencies :
 - transformers     >= 0.5.2.0 && < 0.6
 - lens             >= 4.17.1 && < 5
 - type-errors      >= 0.2.0.0 && < 0.3
+- mmorph
 
 library :
   source-dirs : src

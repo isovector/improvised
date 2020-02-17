@@ -9,6 +9,7 @@ module Test.Improvised.TH
 
 import           Control.Lens (toListOf)
 import           Control.Monad
+import           Control.Monad.Morph
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Reader
 import           Data.List
@@ -146,6 +147,7 @@ liftExprIntoM m_type r_name pos (arg_exp, arg_type) =
   case classifyArg m_type arg_type of
     Boring  -> pure arg_exp
     Monadic -> pure $ liftCorrectPosition r_name pos arg_exp
+    TransformedMonadic -> pure $ hoistCorrectPosition r_name pos `AppE` arg_exp
     Lambda -> do
       Just (arg_types, result_type) <- pure $ unsnoc $ splitArrowTs arg_type
       arg_names <- for arg_types $ const $ newName "x"
@@ -169,6 +171,12 @@ liftCorrectPosition r_name Negative arg =
 liftCorrectPosition _ Positive arg =
   VarE 'lift `AppE` arg
 
+hoistCorrectPosition :: Name -> Position -> Exp
+hoistCorrectPosition r_name Negative =
+  applyE (VarE 'hoist) [VarE 'improvise `AppE` VarE r_name]
+hoistCorrectPosition _ Positive =
+  applyE (VarE 'hoist) [VarE 'lift]
+
 
 ------------------------------------------------------------------------------
 -- | Builds an expression of the form
@@ -177,14 +185,6 @@ liftCorrectPosition _ Positive arg =
 makeHasDictLookup :: Name -> Name -> Name -> Exp
 makeHasDictLookup r_name dict_name field_name =
   VarE field_name `AppE` (VarE dict_name `AppE` VarE r_name)
-
---   applyE (VarE 'view)
---     [ InfixE
---         (Just $ VarE dict_name)
---         (VarE '(.))
---         (Just $ VarE 'to `AppE` VarE field_name)
---     , VarE r_name
---     ]
 
 
 ------------------------------------------------------------------------------
@@ -202,16 +202,16 @@ makeLiftedCall m_type r_name dict_name field_name args = do
 -- @Mockable $ ReaderT $ \r_name -> expr@
 --
 -- where @expr@ is expected to be the result of a 'makeLiftedCall'.
-makeMockableScaffold :: Name -> Exp -> Exp
-makeMockableScaffold r_name expr =
+mockableImprovisedScaffold :: Name -> Exp -> Exp
+mockableImprovisedScaffold r_name expr =
   ConE 'Improvisable `AppE` (ConE 'ReaderT `AppE` LamE [VarP r_name] expr)
 
 
 ------------------------------------------------------------------------------
 -- | Lifts a method call by calling 'makeMockableScaffold' and 'makeLiftedCall'
 -- by generating the @r_name@ and argument names.
-makeLiftedMethod :: Type -> Name -> Name -> Name -> [Type] -> Q [Dec]
-makeLiftedMethod m_type dict_name method_name field_name arg_types = do
+makeLiftedMethod :: Type -> Name -> Name -> Name -> [Type] -> (Name -> Exp -> Exp) -> Q [Dec]
+makeLiftedMethod m_type dict_name method_name field_name arg_types layout = do
   arg_names <- for arg_types $ const $ newName "x"
   r_name <- newName "r"
   let args = zip arg_names arg_types
@@ -221,10 +221,16 @@ makeLiftedMethod m_type dict_name method_name field_name arg_types = do
       $ pure
       $ Clause (fmap VarP arg_names)
           (NormalB
-            $ makeMockableScaffold r_name call
+            $ layout r_name call
           ) []
     , PragmaD $ InlineP method_name Inlinable FunLike AllPhases
     ]
+
+mockableHoistedScaffold :: Name -> Exp -> Exp
+mockableHoistedScaffold r_name expr = DoE
+  [ BindS (VarP r_name) $ VarE 'lift `AppE` (ConE 'Improvisable `AppE` VarE 'ask)
+  , NoBindS $ hoistCorrectPosition r_name Positive `AppE` expr
+  ]
 
 
 makeMockableInstance :: ClassDictInfo -> Q Dec
@@ -236,15 +242,26 @@ makeMockableInstance cdi = do
       okname = getMethodName class_name
 
   methods <-
-    for (filter isMethodField $ dictFields cdi) $ \fi ->
+    for (filter isMethodField $ dictFields cdi) $ \fi -> do
+      let method_type = splitArrowTs $ origType fi
+          res_type = last method_type
+          res_inside_type = last $ splitAppTs res_type
       makeLiftedMethod
             m_type
             okname
             (origName fi)
             (fieldName fi)
-        . init
-        . splitArrowTs
-        $ origType fi
+            (init method_type)
+        $ case (classifyArg m_type res_type) of
+            Monadic            -> \r_name exp ->
+              mockableImprovisedScaffold r_name $
+                case classifyArg m_type res_inside_type of
+                  Monadic -> exp
+                  Boring -> exp
+                  TransformedMonadic ->
+                    applyE (VarE 'fmap) [hoistCorrectPosition r_name Positive, exp]
+                  Lambda -> exp
+            TransformedMonadic -> mockableHoistedScaffold
 
   pure
     $ InstanceD
@@ -324,6 +341,7 @@ negatePosition Negative = Positive
 data ArgType
   = Boring
   | Monadic
+  | TransformedMonadic
   | Lambda
   deriving (Eq, Ord, Show)
 
@@ -331,8 +349,16 @@ data ArgType
 classifyArg :: Type -> Type -> ArgType
 classifyArg _ (_ :-> _) = Lambda
 classifyArg m_type arg_type
-  | m_type == head (splitAppTs arg_type) = Monadic
-  | otherwise = Boring
+  | m_type      == first_arg = Monadic
+  | Just m_type == trans_arg = TransformedMonadic
+  | otherwise                = Boring
+  where
+    args      = splitAppTs arg_type
+    first_arg = head args
+    trans_arg =
+      case length args >= 2 of
+        True  -> Just . last $ init args
+        False -> Nothing
 
 
 

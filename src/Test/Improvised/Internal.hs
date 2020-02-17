@@ -10,6 +10,7 @@ import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Class
 import Data.Coerce
 import Type.Errors
+import Control.Monad.Morph
 
 ------------------------------------------------------------------------------
 -- | Internal type family for providing helpful error messages if you attempt
@@ -32,11 +33,14 @@ type family ShowTypeAppHead (t :: k) :: ErrorMessage where
 
 
 newtype Improvisable dict m a = Improvisable (ReaderT dict m a)
-  deriving newtype (Functor, Applicative, Monad)
-
-instance MonadTrans (Improvisable dict) where
-  lift = Improvisable . lift
-  {-# INLINABLE lift #-}
+  deriving newtype
+    ( Functor
+    , Applicative
+    , Monad
+    , MonadTrans
+    , MFunctor
+    , MMonad
+    )
 
 
 improvise :: dict -> Improvisable dict m a -> m a
